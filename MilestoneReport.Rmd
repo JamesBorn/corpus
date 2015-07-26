@@ -1,0 +1,329 @@
+---
+title: "Data Science Capstone /Milestone Report Rubric"
+author: "pierre arison"
+date: "Monday, July , 2015"
+output: html_document
+---
+  
+==================================================================
+  
+##Subject background
+  Text mining is an emerging technology that can be used to augment existing data in corporate databases by making unstructured text data available for analysis.
+  The goal of this project is just to display that you've gotten used to working with the data and that you are on track to create your prediction algorithm.This include Data acquisition and cleaning, exploratory data analysis: At the end of this, make sure you have by applying the R text mining functions:
+
+* Demonstrate that you've downloaded the data and have successfully loaded it in
+
+* Create a basic report of summary statistics about the data sets.
+
+* Report any interesting findings that you amassed so far.
+
+* Get feedback on your plans for creating a prediction algorithm and Shiny app. 
+
+#Data source#
+The data for this project  is from a corpus called HC Corpora  available on: http://:www.corpora.heliohost.org with his  readme file at http://www.corpora.heliohost.org/aboutcorpus.html. The training Dataset can be download  from the Coursera site and not from external websites by clicking
+[Capstone Dataset](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip)
+
+# data processing#
+
+* Working directory
+
+```{r}
+setwd("C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/final/en_US")
+```
+
+* data use in this part of project
+  
+  We use three texts files en_US.news.txt, en_US.blogs.txt, en_US.twitter.txt in this part of project with is in US english.
+
+* Loading Texts Dataset and Extracts specific files from a zip file
+  
+```{r}
+destfile <- "Coursera-SwiftKey.zip"
+sourcefile<- "http://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+download.file(sourcefile, destfile)
+#unzip(destfile)
+unzip(destfile, list = TRUE )
+```
+
+==================================================================
+
+*Load the R package for text mining and then load your texts into R*
+
+We have to use the the tm key package that makes analysis of unstructured data available to the R users, package  stringr for convenient way to override the current encoding of a string
+stringi for  Character String Processing Facilities
+stringdist for approximate string matching
+Rweka  usefull for the tokenization steps
+
+
+```{r }
+options(warn=-1)
+library(stringr)
+library(stringi)
+library(stringdist)
+library(tm)
+library(RWeka)
+```
+
+
+*Basic Statistics and files Informations*
+  
+```{r}
+library(knitr)
+twitter <- system('wc -lwm C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/final/en_US/en_US.twitter.txt',intern = T)
+news <- system('wc -lwm C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/final/en_US/en_US.news.txt',intern = T)
+blogs <- system('wc -lwm C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/final/en_US/en_US.blogs.txt',intern = T)
+TWITTERS.NUM <- as.numeric(grep('[[:digit:]]', unlist(strsplit(twitter," ")), value = T))
+NEWS.NUM<- as.numeric(grep('[[:digit:]]', unlist(strsplit(news," ")), value = T))
+BLOGS.NUM<- as.numeric(grep('[[:digit:]]', unlist(strsplit(blogs," ")), value = T))
+Combine_US <- as.data.frame(rbind(TWITTERS.NUM,NEWS.NUM,BLOGS.NUM))
+rownames(Combine_US) <- c('twitter','news','blogs')
+colnames(Combine_US) <- c('line counts','word counts','document size')
+kable(Combine_US, align='c', caption = "Summary of the datasets")
+```
+
+* Reading data into R environment
+  
+```{r results="hide"}
+options(warn=-1)
+setwd("C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/final/en_US")
+TWITTERS <- readLines("en_US.twitter.txt", encoding="UTF-8")
+BLOGS <- readLines("en_US.blogs.txt", encoding="UTF-8")
+NEWS <- readLines("en_US.news.txt", encoding="UTF-8")
+```
+
+
+```{r}
+stri_stats_general(NEWS)
+stri_stats_general(TWITTERS)
+stri_stats_general(BLOGS)
+
+```
+
+
+
+
+The file sizes are so large, we have to Perform Sampling by using the combine file Combine_US we take 10% of lines and  randomly sampled and saved to disk from the combine file.
+
+```{r}
+combine1 <- append(TWITTERS, BLOGS)
+combine_US<- append(combine1, NEWS)
+set.seed(123)
+samplecombine_US <- sample(combine_US, length(combine_US) * 0.01)
+writeLines(samplecombine_US,"C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/milstoneDATA/samplecombine_US.txt")
+```
+
+
+
+* Defining a corpus of texts data using the sample of combine file of three files
+
+  A corpus, in natural language processing, is a body or collection of text information.
+  In order to apply many of the capabilities of R, it is necessary to convert the file that was read into the format that the tm packages function requires. To do this the file must be converted to a corpus. 
+
+```{r}
+cname <- file.path("C:/Users/ryUser/Documents/capstone/DS_capstone/Coursera-SwiftKey/", "milstoneDATA")
+corpus <- Corpus(DirSource(cname))
+```
+
+
+*Preparing the Corpus*
+  
+  We perform some pre-processing of the text data to prepare for the text analysis. Example transformations include converting the text to lower case, removing numbers and punctuation, removing stopwords, stemming and identifying synonyms. 
+
+```{r results='asis'}
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, " ", x))
+corpus <- tm_map(corpus, toSpace, "a-z A-Z 0-9!/|@|- <>\\|'+")
+#corpus <- tm_map(corpus, toSpace, "[^ a-z A-Z 0-9!',\\-./:;<?@()]+|\"'")
+```
+
+
+
+```{r results="hide"}
+library(SnowballC)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, stemDocument)
+corpus<- tm_map(corpus,removePunctuation)
+corpus<- tm_map(corpus,removeNumbers)
+corpus<- tm_map(corpus, removeWords, stopwords("english"))
+corpus<- tm_map(corpus, removeWords, "<U+0096>")
+corpus <- tm_map(corpus, PlainTextDocument) 
+
+```
+
+
+
+
+* Creating a Do cument Term Matrix
+
+```{r  results='asis'}
+#dtm <- DocumentTermMatrix(corpus)
+#dtm
+```
+
+*Tokenization*
+
+Tokenization is the process of breaking a stream of text up into phrases, words, symbols, or other meaningful elements called tokens. The goal of the tokenization is the exploration of the words in a sentence.We also have to tokenize our corpus.
+
+```{r results="hide"}
+library(RWeka)
+Tokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+unidtm <- DocumentTermMatrix(corpus,control = list(tokenize = Tokenizer))
+
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+bidtm <- DocumentTermMatrix(corpus,control = list(tokenize = BigramTokenizer))
+
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+tridtm <- DocumentTermMatrix(corpus,control = list(tokenize = TrigramTokenizer))
+
+fourgramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 4, max = 4))
+fourdtm <- DocumentTermMatrix(corpus,control = list(tokenize = fourgramTokenizer))
+
+```
+
+
+# Distribution of Term Frequencies#
+
+* Definition*
+- a unigram is a sequence of one word 
+- a bigram is a sequence of two words 
+- a trigram is a sequence of three words  
+and so on and so force the general term n-gram means 'sequence of length n'
+
+  The specificity of various words is a useful property for making distinctions between different documents in a corpus, Relating Word Frequencies to Known Dimensions of Interest.
+  The results below show that: The most frequent word of unigrams is: *just* and the for bigrams we have: *right now*,for trigrams we have: *hi hi hi* and for fourgrams we have: *hi hi hi hi*, in the sample corpus
+  
+
+* The five highest frequencies of Unigrams
+
+
+
+```{r}
+tm_unifreq <- sort(colSums(as.matrix(unidtm)), decreasing=TRUE)
+tm_uniwordfreq <- data.frame(word=names(tm_unifreq), freq=tm_unifreq)
+head(tm_uniwordfreq,5)
+```
+
+* The five highest frequencies of bigrams
+
+```{r}
+tm_bifreq <- sort(colSums(as.matrix(bidtm)), decreasing=TRUE)
+tm_biwordfreq <- data.frame(word=names(tm_bifreq), freq=tm_bifreq)
+head(tm_biwordfreq ,5)
+
+
+```
+
+* The five highest frequencies of Trigrams
+
+```{r}
+tm_trifreq <- sort(colSums(as.matrix(tridtm)), decreasing=TRUE)
+tm_triwordfreq <- data.frame(word=names(tm_trifreq), freq=tm_trifreq)
+head(tm_triwordfreq ,5)
+
+```
+
+* The five highest frequencies of fourgrams
+```{r}
+tm_fourfreq <- sort(colSums(as.matrix(fourdtm)), decreasing=TRUE)
+tm_fourwordfreq <- data.frame(word=names(tm_fourfreq), freq=tm_fourfreq)
+head(tm_fourwordfreq ,5)
+
+```
+
+==================================================================
+
+
+#Plotting Word Frequencies
+  
+  
+  
+  
+  * Unigrams
+  
+```{r}
+library(ggplot2)
+library(dplyr)
+tm_uniwordfreq %>% 
+  filter(freq > 1000) %>%
+  ggplot(aes(word,freq)) +
+  geom_bar(stat="identity",fill = "Sky Blue") +
+  ggtitle("Unigrams with frequencies > 1000") +
+  xlab("Unigrams") + ylab("Frequency") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))+ coord_flip()
+
+
+
+```
+
+
+* Bigrams
+
+```{r}
+tm_biwordfreq %>% 
+  filter(freq > 100) %>%
+  ggplot(aes(word,freq)) +
+  geom_bar(stat="identity",fill = "Sky Blue") +
+  ggtitle("Bigrams with frequencies > 100") +
+  xlab("Bigrams") + ylab("Frequency") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))+ coord_flip()
+
+
+```
+
+* Trigrams
+
+```{r}
+tm_triwordfreq %>% 
+  filter(freq > 10) %>%
+  ggplot(aes(word,freq)) +
+  geom_bar(stat="identity",fill = "Sky Blue") +
+  ggtitle("Trigrams with frequencies > 10") +
+  xlab("Trigrams") + ylab("Frequency") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))+ coord_flip()
+
+
+```
+
+
+* Fourgrams
+
+```{r}
+tm_fourwordfreq %>% 
+  filter(freq > 5) %>%
+  ggplot(aes(word,freq)) +
+  geom_bar(stat="identity",fill = "Sky Blue") +
+  ggtitle("fourgrams with frequencies > 5") +
+  xlab("fourgrams") + ylab("Frequency") +
+  theme(axis.text.x=element_text(angle=45, hjust=1))+ coord_flip()
+
+
+```
+
+==================================================================
+
+#Word Clouds
+
+
+
+The most frequent terms appear in the center of the cloud and are larger. The colors that the terms are printed in also changes as the frequency decreases. 
+  
+```{r}
+options(warn=-1)
+library(wordcloud)
+set.seed(39)
+wordcloud(names(tm_unifreq), tm_unifreq, max.words=50,scale=c(5,.1),random.order=FALSE, colors=brewer.pal(6, "Dark2"))
+
+wordcloud(names(tm_bifreq), tm_bifreq, max.words=50, scale=c(5, .1),random.order=FALSE, colors=brewer.pal(6, "Dark2"))
+wordcloud(names(tm_trifreq), tm_trifreq, max.words=25, scale=c(5, .1),random.order=FALSE, colors=brewer.pal(6, "Dark2"))
+wordcloud(names(tm_fourfreq), tm_fourfreq, max.words=25, scale=c(5, .1),random.order=FALSE, colors=brewer.pal(6, "Dark2"))
+
+```
+
+==================================================================
+
+#Next steps#
+
+* The next step of this project is base on corpus counts for  building the next word prediction model.Here I will Develop more n-grams.The method I will used is the  Maximum Likelihood Estimation (MLE) 
+* Building the Shiny app to demonstrate the model.
+
+
